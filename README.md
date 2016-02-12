@@ -1,7 +1,8 @@
 # optimalThumbnail
 Optimal thumbnail creator written in golang
 Based on:
-Ghassen Hamrouni <ghamrouni.iptech@gmail.com>'s optimalResize
+https://github.com/GHamrouni/OptimalCrop
+
 
 Processes multiple files on 12 channels, and won't run in to the "too many files open" error.
 
