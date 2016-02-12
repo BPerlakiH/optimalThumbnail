@@ -71,13 +71,11 @@ func main() {
 
 	
 	//get the processable files:
-	files := make([]os.FileInfo, len(fi))
-	i := 0
+	var files []os.FileInfo
 	for _, file := range fi {
 		ext := filepath.Ext(file.Name())
 		if !file.IsDir() && (ext == ".png" || ext == ".jpg" || ext == ".gif") {
-			files[i] = file
-			i++
+			files = append(files, file)
 		}
 	}
 	files_count := len(files)
@@ -94,8 +92,7 @@ func main() {
 		for i := 0; i < channel_count; i++ {
 			go func(i int) {
 				min := i * files_per_channel
-				max := int(math.Min(float64((i+1) * files_per_channel), float64(files_count-1)))
-				// fmt.Println("min: %v, max: %v", min, max)
+				max := int(math.Min(float64((i+1) * files_per_channel), float64(files_count)))
 				for k := min; k < max; k++ {
 					filename := files[k].Name()
 					percent := float64(k) / float64(files_count)
@@ -113,7 +110,7 @@ func main() {
 	} else {
 		//go parallel on all files at the same time:
 		channels := make(chan int, files_count)
-		for index := 0; index < files_count-1; index++ {
+		for index := 0; index < files_count; index++ {
 			filename := files[index].Name()
 			fmt.Println(filename)
 			go func(filename string) {
@@ -128,7 +125,7 @@ func main() {
 			}(filename)
 		}
 		//close all channels
-		for i := 0; i < files_count-1; i++ {
+		for i := 0; i < files_count; i++ {
 			<-channels
 		}
 	}
