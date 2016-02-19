@@ -87,9 +87,6 @@ func main() {
 	}
 
 	// Print the cmd options
-
-	fmt.Printf("image resize daemon \n")
-
 	fmt.Printf("Input:  %s \n", *inDir)
 	fmt.Printf("Output: %s \n", *outDir)
 	fmt.Printf("Width:  %d \n", *width)
