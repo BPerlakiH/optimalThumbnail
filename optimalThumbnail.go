@@ -24,11 +24,41 @@ import (
 	"path/filepath"
 	"time"
 	"math"
+	"strings"
 	"github.com/BPerlakiH/optimalThumbnail/process"
 )
 
 import _ "image/jpeg"
 import _ "image/gif"
+
+func processFiles(files []os.FileInfo, inDir string, outDir string, width int, height int, quality int, outFormat string) {
+	files_count := len(files)
+	//go parallel on all files at the same time:
+	channels := make(chan int, files_count)
+
+	for index := range files {
+		filename := files[index].Name()
+		// fmt.Println(filename)
+		go func(filename string) {
+			// Combine the directory path with the filename to get 
+			// the full path of the image
+			basename := filepath.Base(filename)
+			outputFileName := strings.TrimSuffix(basename, filepath.Ext(basename)) + "." + outFormat
+
+			fullImagePath := filepath.Join(inDir, filename)
+			fullImageOutPath := filepath.Join(outDir, outputFileName)
+			// fmt.Println(fullImageOutPath)
+
+			process.ProcessFile(fullImagePath, fullImageOutPath, width, height, quality)
+			//open the channel
+			channels <- 1
+		}(filename)
+	}
+	//close all channels
+	for i := 0; i < files_count; i++ {
+		<-channels
+	}
+}
 
 func main() {
 
@@ -37,13 +67,23 @@ func main() {
 	// Read the CMD options
 	inDir := flag.String("in", "", "input directory")    // input directory
 	outDir := flag.String("out", "", "output directory") // output directory
-	width := flag.Int("width", 128, "the new width")     // width
-	height := flag.Int("height", 128, "the new height")  // height
+	width := flag.Int("width", 178, "the new width")     // width
+	height := flag.Int("height", 178, "the new height")  // height
+	outFormat := flag.String("format", "jpg", "image format")  // image format: jpg, png, webp
+	quality := flag.Int("q", 75, "image output quality") // image encode quality 0-100
+	concurency := flag.Int("c", 10, "amount of threads to be used") //amount of channels used in paralel default 10
+
 
 	flag.Parse()
+	usage := "usage: \noptimalThumbnail -in inputDir -out outputDir -width 178 -height 178 -format jpg -q 70 -c 10"
 
 	if *inDir == "" || *outDir == "" {
-		log.Fatal("usage: \n imageResizer -in inputDir -out outputDir -width 128 -height 128")
+		log.Fatal(usage)
+	}
+
+	if *outFormat != "jpg" && *outFormat != "png" && *outFormat != "webp" {
+		fmt.Printf("invalid image format (%v), it can be: [jpg|png|webp]\n", *outFormat)
+		log.Fatal(usage)
 	}
 
 	// Print the cmd options
@@ -82,52 +122,56 @@ func main() {
 
 
 	//BRAKE DOWN TO CHANELS
-	channel_count := 12
+	max_channels := *concurency
 	
-	if channel_count < files_count {
+	if max_channels < files_count {
 		//go parallel on the channels:
-		channels := make(chan int, channel_count)
-		files_per_channel := int(math.Floor(float64(files_count) / float64(channel_count)))
+		is_more := true
+		i := 0
+		for is_more == true {
+			end := i + max_channels
+			end = int(math.Min(float64(end), float64(files_count)))
+			files_chunk := files[i:end]
+			processFiles(files_chunk, *inDir, *outDir, *width, *height, *quality, *outFormat)
 
-		for i := 0; i < channel_count; i++ {
-			go func(i int) {
-				min := i * files_per_channel
-				max := int(math.Min(float64((i+1) * files_per_channel), float64(files_count)))
-				for k := min; k < max; k++ {
-					filename := files[k].Name()
-					percent := float64(k) / float64(files_count)
-					fmt.Printf("\r%v %v/%v (%v%%)", filename, k, files_count, int(percent * 100))
-					fullImagePath := filepath.Join(*inDir, filename)
-					fullImageOutPath := filepath.Join(*outDir, filepath.Base(filename))
-					process.ProcessFile(fullImagePath, fullImageOutPath, *width, *height)
-				}
-				//open the channel
-				channels <- 1
-			}(i)
-			//close the channel
-			<-channels
+			percent := float64(end) / float64(files_count)
+			fmt.Printf("\r%v-%v/%v (%v%%)", i, end, files_count, int(percent * 100))
+
+			i += max_channels+1 
+			if end == files_count {
+				is_more = false
+			}
+			// time.Sleep(500 * time.Millisecond)
 		}
+
+		
+		// for i := 0; i <= channel_count; i++ {
+		// 	go func(i int) {
+		// 		min := i * files_per_channel
+		// 		channel_ends := min + files_per_channel
+		// 		// fmt.Printf("min: %v, channel_ends: %v, files_count: %v\n", min, channel_ends, files_count)
+		// 		max := int(math.Min(float64(channel_ends), float64(files_count)))
+		// 		// fmt.Printf("%v - %v\n", min, max)
+		// 		for k := min; k < max; k++ {
+		// 			filename := files[k].Name()
+		// 			percent := float64(k) / float64(files_count)
+		// 			fmt.Printf("\r%v %v/%v (%v%%)", filename, k, files_count, int(percent * 100))
+		// 			fullImagePath := filepath.Join(*inDir, filename)
+
+		// 			basename := filepath.Base(filename)
+		// 			outputFileName := strings.TrimSuffix(basename, filepath.Ext(basename)) + "." + *outFormat
+
+		// 			fullImageOutPath := filepath.Join(*outDir, outputFileName)
+		// 			process.ProcessFile(fullImagePath, fullImageOutPath, *width, *height, *quality)
+		// 		}
+		// 		//open the channel
+		// 		channels <- 1
+		// 	}(i)
+		// 	//close the channel
+		// 	<-channels
+		// }
 	} else {
-		//go parallel on all files at the same time:
-		channels := make(chan int, files_count)
-		for index := 0; index < files_count; index++ {
-			filename := files[index].Name()
-			fmt.Println(filename)
-			go func(filename string) {
-				// Combine the directory path with the filename to get 
-				// the full path of the image
-				fullImagePath := filepath.Join(*inDir, filename)
-				fullImageOutPath := filepath.Join(*outDir, filepath.Base(filename))
-
-				process.ProcessFile(fullImagePath, fullImageOutPath, *width, *height)
-				//open the channel
-				channels <- 1
-			}(filename)
-		}
-		//close all channels
-		for i := 0; i < files_count; i++ {
-			<-channels
-		}
+		processFiles(files[:], *inDir, *outDir, *width, *height, *quality, *outFormat)
 	}
 
 	//LINEAR ONE
@@ -145,3 +189,4 @@ func main() {
 	end_time := time.Now()
 	fmt.Printf("Processing time : %v \n", end_time.Sub(start_time))
 }
+

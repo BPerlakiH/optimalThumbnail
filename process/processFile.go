@@ -20,63 +20,76 @@ import (
 	"bufio"
 	"fmt"
 	"image"
+	"image/jpeg"
 	"image/png"
 	"image/draw"
 	"log"
 	"os"
 	"path/filepath"
 	"github.com/BPerlakiH/optimalThumbnail/optimal"
+	"github.com/chai2010/webp"
 )
 
+// import _ "image/jpeg"
+// import _ "image/png"
+
 // Resize and crop an image
-func ProcessFile(inputFile string, outputFile string, width int, height int) {
+func ProcessFile(inputFile string, outputFile string, width int, height int, quality int) {
 
-	// Only three image formats are supported (png, jpg, gif)
-	if filepath.Ext(inputFile) == ".png" ||
-		filepath.Ext(inputFile) == ".jpg" ||
-		filepath.Ext(inputFile) == ".gif" {
-
-		imagefile, err := os.Open(inputFile)
-		// TODO: implement a saner way to handle
-		// oprn errors
-		if err != nil {
-			fmt.Printf("Open error \n" + inputFile)
-			log.Println(err) // Don't use log.Fatal to exit
-			os.Exit(1)
-		} else {
-			// fmt.Printf("Openned: " + inputFile + "\n")
-		}
-
-		
-		// Decode the image.
-		m, _, err := image.Decode(imagefile)
-		imagefile.Close()
-
-		if err != nil {
-			fmt.Printf("Decode error \n")
-			log.Println(err)
-			os.Exit(1)
-		}
-
-		b := m.Bounds()
-
-		// All images are converted to the NRGBA type
-		rgbaImage := image.NewNRGBA(image.Rect(0, 0, b.Dx(), b.Dy()))
-		draw.Draw(rgbaImage, rgbaImage.Bounds(), m, b.Min, draw.Src)
-
-		// Perform an optimal resize with 4 iterations  
-		m2 := optimal.OptimalResize(rgbaImage, width, height, 8)
-
-		fo, err := os.Create(outputFile)
-
-		if err != nil {
-			fmt.Printf("create file error \n")
-			panic(err)
-		}
-		
-		w := bufio.NewWriter(fo)
-		png.Encode(w, m2)
-		w.Flush()
-		fo.Close()
+	if inputFile == "" || outputFile == "" {
+		return
 	}
+
+	imagefile, err := os.Open(inputFile)
+	// TODO: implement a saner way to handle
+	// open errors
+	if err != nil {
+		fmt.Printf("Open error \n" + inputFile)
+		log.Println(err) // Don't use log.Fatal to exit
+		return
+	}
+
+	
+	// Decode the image.
+	m, _, err := image.Decode(imagefile)
+	imagefile.Close()
+
+	if err != nil {
+		fmt.Printf("Decode error \n")
+		log.Println(err)
+		return
+	}
+
+	b := m.Bounds()
+
+	// All images are converted to the NRGBA type
+	rgbaImage := image.NewNRGBA(image.Rect(0, 0, b.Dx(), b.Dy()))
+	draw.Draw(rgbaImage, rgbaImage.Bounds(), m, b.Min, draw.Src)
+
+	// Perform an optimal resize with 4 iterations  
+	m2 := optimal.OptimalResize(rgbaImage, width, height, 4)
+
+	fo, err := os.Create(outputFile)
+
+	if err != nil {
+		fmt.Printf("create file error \n")
+		fo.Close()
+		return
+	}
+
+	writer := bufio.NewWriter(fo)
+
+	switch filepath.Ext(outputFile) {
+		case ".png":
+			png.Encode(writer, m2)
+			break
+		case ".webp":
+			webp.Encode(writer, m2, &webp.Options{Lossless: false, Quality: float32(quality)})
+			break
+		default: //default to jpg
+			jpeg.Encode(writer, m2, &jpeg.Options{Quality: quality})
+			break
+	}
+	writer.Flush()
+	fo.Close()
 }
