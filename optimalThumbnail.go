@@ -134,8 +134,8 @@ func main() {
 			percent := float64(end) / float64(files_count)
 			fmt.Printf("\r%v-%v/%v (%v%%)", i, end, files_count, int(percent * 100))
 
-			i += max_channels+1 
-			if end == files_count {
+			i += max_channels+1
+			if files_count <= i {
 				is_more = false
 			}
 			// time.Sleep(500 * time.Millisecond)
@@ -168,7 +168,10 @@ func main() {
 		// 	<-channels
 		// }
 	} else {
-		processFiles(files[:], *inDir, *outDir, *width, *height, *quality, *outFormat)
+		for _, f := range files {
+			fmt.Printf("%v\n", f.Name())
+		}
+		processFiles(files, *inDir, *outDir, *width, *height, *quality, *outFormat)
 	}
 
 	//LINEAR ONE
