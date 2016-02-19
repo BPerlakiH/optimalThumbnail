@@ -32,12 +32,12 @@ optimalThumbnail -in your_input_folder_path -out your_output_folder_path -width 
 
 Optional config values:
 
-width - [default 178]
+*width* - [default 178]
 
-height - [default 178]
+*height* - [default 178]
 
-format - output format of the image, it can be jpg, png or webp [default jpg]
+*format* - output format of the image, it can be jpg, png or webp [default jpg]
 
-q - quality of the image encoding 0-100 [default 75]
+*q* - quality of the image encoding 0-100 [default 75]
 
-c - concurency, the amount of go rutines launched at once [default 10]
+*c* - concurency, the amount of go rutines launched at once [default 10]
