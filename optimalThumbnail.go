@@ -14,6 +14,8 @@ TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF
 THIS SOFTWARE.
 */
 
+// +build linux,amd64 darwin
+
 package main
 
 import (
@@ -65,7 +67,7 @@ func main() {
 	start_time := time.Now()
 
 	// Read the CMD options
-	inDir := flag.String("in", "", "input directory")    // input directory
+	inDir := flag.String("in", "", "input directory or file[jpg|png|gif]")    // input directory
 	outDir := flag.String("out", "", "output directory") // output directory
 	width := flag.Int("width", 178, "the new width")     // width
 	height := flag.Int("height", 178, "the new height")  // height
@@ -75,7 +77,7 @@ func main() {
 
 
 	flag.Parse()
-	usage := "usage: \noptimalThumbnail -in inputDir -out outputDir -width 178 -height 178 -format jpg -q 70 -c 10"
+	usage := "usage: \noptimalThumbnail -in input[file|dir] -out outputDir -width 178 -height 178 -format jpg -q 70 -c 10"
 
 	if *inDir == "" || *outDir == "" {
 		log.Fatal(usage)
@@ -98,24 +100,42 @@ func main() {
 		d.Close()
 		os.Exit(1)
 	}
-
-	fi, err := d.Readdir(-1)
-	d.Close()
+	//define an array for the processable files
+	var files []os.FileInfo
+	var input_dir = *inDir
+	file_info, err := os.Stat(*inDir)
 	if err != nil {
 		fmt.Println(err)
+		d.Close()
 		os.Exit(1)
 	}
 
-	
-	//get the processable files:
-	var files []os.FileInfo
-	for _, file := range fi {
-		ext := filepath.Ext(file.Name())
-		if !file.IsDir() && (ext == ".png" || ext == ".jpg" || ext == ".gif") {
-			files = append(files, file)
+	if file_info.IsDir() {
+		fi, err := d.Readdir(-1)
+		d.Close()
+		if err != nil {
+			fmt.Println(err)
+			os.Exit(1)
 		}
+
+		//get the processable files:
+		for _, file := range fi {
+			ext := filepath.Ext(file.Name())
+			if !file.IsDir() && (ext == ".png" || ext == ".jpg" || ext == ".gif") {
+				files = append(files, file)
+			}
+		}
+	} else {
+		//d is a file not a directory, but a file, append it
+		files = append(files, file_info)
+		input_dir = filepath.Dir(*inDir)
 	}
+
+	//count the files
 	files_count := len(files)
+
+	
+	
 
 
 	//BRAKE DOWN TO CHANELS
@@ -129,7 +149,7 @@ func main() {
 			end := i + max_channels
 			end = int(math.Min(float64(end), float64(files_count)))
 			files_chunk := files[i:end]
-			processFiles(files_chunk, *inDir, *outDir, *width, *height, *quality, *outFormat)
+			processFiles(files_chunk, input_dir, *outDir, *width, *height, *quality, *outFormat)
 
 			percent := float64(end) / float64(files_count)
 			fmt.Printf("\r%v-%v/%v (%v%%)", i, end, files_count, int(percent * 100))
@@ -138,52 +158,14 @@ func main() {
 			if files_count <= i {
 				is_more = false
 			}
-			// time.Sleep(500 * time.Millisecond)
 		}
 
-		
-		// for i := 0; i <= channel_count; i++ {
-		// 	go func(i int) {
-		// 		min := i * files_per_channel
-		// 		channel_ends := min + files_per_channel
-		// 		// fmt.Printf("min: %v, channel_ends: %v, files_count: %v\n", min, channel_ends, files_count)
-		// 		max := int(math.Min(float64(channel_ends), float64(files_count)))
-		// 		// fmt.Printf("%v - %v\n", min, max)
-		// 		for k := min; k < max; k++ {
-		// 			filename := files[k].Name()
-		// 			percent := float64(k) / float64(files_count)
-		// 			fmt.Printf("\r%v %v/%v (%v%%)", filename, k, files_count, int(percent * 100))
-		// 			fullImagePath := filepath.Join(*inDir, filename)
-
-		// 			basename := filepath.Base(filename)
-		// 			outputFileName := strings.TrimSuffix(basename, filepath.Ext(basename)) + "." + *outFormat
-
-		// 			fullImageOutPath := filepath.Join(*outDir, outputFileName)
-		// 			process.ProcessFile(fullImagePath, fullImageOutPath, *width, *height, *quality)
-		// 		}
-		// 		//open the channel
-		// 		channels <- 1
-		// 	}(i)
-		// 	//close the channel
-		// 	<-channels
-		// }
 	} else {
 		for _, f := range files {
 			fmt.Printf("%v\n", f.Name())
 		}
-		processFiles(files, *inDir, *outDir, *width, *height, *quality, *outFormat)
+		processFiles(files, input_dir, *outDir, *width, *height, *quality, *outFormat)
 	}
-
-	//LINEAR ONE
-	// for index := 0; index < files_count-1; index++ {
-	// 	filename := files[index].Name()
-	// 	// Combine the directory path with the filename to get 
-	// 	// the full path of the image
-	// 	fullImagePath := filepath.Join(*inDir, filename)
-	// 	fullImageOutPath := filepath.Join(*outDir, filepath.Base(filename))
-	// 	process.ProcessFile(fullImagePath, fullImageOutPath, *width, *height)
-	// }
-
 
 
 	end_time := time.Now()
